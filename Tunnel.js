@@ -4,9 +4,10 @@
 
 var decompress = require('decompress');
 var Evented = require('dojo/Evented');
+var requestUtil = require('dojo/request');
 var fs = require('fs');
-var http = require('http');
-var https = require('https');
+var http = require('http'); // TODO remove
+var https = require('https'); // TODO remove
 var pathUtil = require('path');
 var Promise = require('dojo/Promise');
 var spawnUtil = require('child_process');
@@ -58,6 +59,72 @@ function get(url) {
 	request.end();
 
 	return dfd.promise;
+}
+
+/**
+ * Decompresses a file stream to disk
+ *
+ * @param stream a stream to decompress
+ * @param target the target directory
+ * @param ext the file extension
+ * @returns {Promise.<*>} A promise that resolves upon completion
+ * @private
+ */
+function decompressToDisk(stream, target, ext) {
+	var dfd = new Promise.Deferred();
+	var decompressor = decompress({ ext: ext, path: target });
+
+	stream.pipe(decompressor);
+
+	decompressor.on('close', function () {
+		dfd.resolve();
+	});
+
+	return dfd.promise;
+}
+
+/**
+ * Downloads a file from a server
+ *
+ * @param {string} url The target URL.
+ * @param {string} proxy a proxy URL
+ * @returns {Promise.<module:http.ServerResponse>}
+ * @private
+ */
+function download(url, proxy) {
+	var request = requestUtil(url, {
+		streamData: true, // set to true so request doesn't accumulate data
+		proxy: proxy
+	});
+
+	request.then(onComplete, onError, onProgress);
+
+	return request;
+
+	function onProgress(update) {
+		if(!update) { return; }
+
+		if(update.type === 'data') {
+
+		}
+	}
+
+	function onComplete(response) {
+		if (response.statusCode === 200) {
+			return response;
+		}
+		else if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+			return download(response.headers.location);
+		}
+		else {
+			return new Promise.Deferred().reject(response);
+		}
+	}
+
+	function onError(error) {
+		console.log('download error');
+		console.log(error);
+	}
 }
 
 /**
@@ -295,6 +362,29 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 	 * @param {boolean} forceDownload Force downloading the software even if it already has been downloaded.
 	 * @returns {Promise.<void>} A promise that resolves once the download and extraction process has completed.
 	 */
+	newDownload: function (forceDownload) {
+		var directory = this.directory;
+		var url = this.url;
+
+		if (!forceDownload && this.isDownloaded) {
+			return Promise.resolve();
+		}
+
+		return download(url, this.proxy)
+			.then(function (result) {
+				return decompressToDisk(result.nativeResponse, directory, url)
+			});
+	},
+
+	/**
+	 * Downloads and extracts the tunnel software if it is not already downloaded.
+	 *
+	 * This method can be extended by implementations to perform any necessary post-processing, such as setting
+	 * appropriate file permissions on the downloaded executable.
+	 *
+	 * @param {boolean} forceDownload Force downloading the software even if it already has been downloaded.
+	 * @returns {Promise.<void>} A promise that resolves once the download and extraction process has completed.
+	 */
 	download: function (forceDownload) {
 		var dfd = new Promise.Deferred(function (reason) {
 			request && request.cancel(reason);
@@ -308,6 +398,7 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 
 		var target = this.directory;
 		var request;
+
 		function download(url) {
 			request = get(url);
 			request.then(function (response) {
