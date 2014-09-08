@@ -29,6 +29,7 @@ function clearHandles(handles) {
 	}
 }
 
+// TODO remove
 /**
  * Performs a GET request to a remote server.
  *
@@ -77,6 +78,7 @@ function decompressToDisk(stream, target, ext) {
 	stream.pipe(decompressor);
 
 	decompressor.on('close', function () {
+		console.log('closed decompressor');
 		dfd.resolve();
 	});
 
@@ -92,20 +94,25 @@ function decompressToDisk(stream, target, ext) {
  * @private
  */
 function download(url, proxy) {
-	var request = requestUtil(url, {
-		streamData: true, // set to true so request doesn't accumulate data
+	var options = {
+		streamDate: true,
 		proxy: proxy
-	});
+	};
+	var request = requestUtil(url, options);
 
 	request.then(onComplete, onError, onProgress);
 
 	return request;
 
+	// TODO remove after debugging
 	function onProgress(update) {
 		if(!update) { return; }
 
 		if(update.type === 'data') {
-
+			console.log('chunk: ' + update.chunk.length + ' loaded: ' + update.loaded + ' total: ' + update.total);
+		}
+		else if (update.type === 'nativeResponse') {
+			console.log('got native response');
 		}
 	}
 
@@ -365,17 +372,24 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 	newDownload: function (forceDownload) {
 		var directory = this.directory;
 		var url = this.url;
+		var decompressPromise;
 
 		if (!forceDownload && this.isDownloaded) {
 			return Promise.resolve();
 		}
 
 		return download(url, this.proxy)
-			.then(function (result) {
-				return decompressToDisk(result.nativeResponse, directory, url)
+			.then(function () {
+				return decompressPromise;
+			}, undefined, function (update) {
+				if (update.type === 'nativeResponse') {
+					decompressPromise = decompressToDisk(update.response, directory, url);
+//					update.response.pipe(new fs.createWriteStream('test.zip')); // TODO remove after testing is complete
+				}
 			});
 	},
 
+	// TODO match APIs and replace w/ newDownload
 	/**
 	 * Downloads and extracts the tunnel software if it is not already downloaded.
 	 *
