@@ -7,27 +7,15 @@ var tunnel = new SauceLabsTunnel({
 //	proxy: 'http://localhost:8888'
 });
 
-rimraf(target, testNewDownload);
-
-
-function testNewDownload() {
-	var promise = tunnel.newDownload();
-	attachDownloadHandlers(promise);
-}
-
-function testDownload() {
-	var promise = tunnel.download();
-	attachDownloadHandlers(promise);
-}
-
-function attachDownloadHandlers(promise) {
-	promise.then(onComplete, onError);
-
-	function onComplete() {
-		console.log('download complete');
-	}
-
-	function onError(info) {
-		console.log(info);
-	}
-}
+rimraf(target, function () {
+	tunnel.download()
+		.then(function (response) {
+			console.log('Download complete');
+			console.log(response);
+		}, function (error) {
+			console.log(error);
+		}, function (update) {
+			if(!update || update.type !== 'data') { return; }
+			console.log('chunk: ' + update.chunk.length + ' loaded: ' + update.loaded + ' total: ' + update.total);
+		});
+});

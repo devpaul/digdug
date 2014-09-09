@@ -6,8 +6,6 @@ var decompress = require('decompress');
 var Evented = require('dojo/Evented');
 var requestUtil = require('dojo/request');
 var fs = require('fs');
-var http = require('http'); // TODO remove
-var https = require('https'); // TODO remove
 var pathUtil = require('path');
 var Promise = require('dojo/Promise');
 var spawnUtil = require('child_process');
@@ -26,111 +24,6 @@ function clearHandles(handles) {
 	var handle;
 	while ((handle = handles.pop())) {
 		handle.remove();
-	}
-}
-
-// TODO remove
-/**
- * Performs a GET request to a remote server.
- *
- * @param {string} url The target URL.
- * @returns {Promise.<module:http.IncomingMessage>} A promise that resolves to the response object for the request.
- * @private
- */
-function get(url) {
-	url = urlUtil.parse(url);
-	url.method = 'GET';
-
-	var dfd = new Promise.Deferred(function () {
-		request && request.abort();
-		request = null;
-	});
-
-	// TODO: This is not a great way of capturing async stack traces, but this pattern is used in several areas;
-	// can we do it better?
-	var capture = {};
-	Error.captureStackTrace(capture);
-
-	var request = (url.protocol === 'https:' ? https : http).request(url);
-	request.once('response', dfd.resolve.bind(dfd));
-	request.once('error', function (error) {
-		error.stack = error.stack + capture.stack.replace(/^[^\n]+/, '');
-		dfd.reject(error);
-	});
-	request.end();
-
-	return dfd.promise;
-}
-
-/**
- * Decompresses a file stream to disk
- *
- * @param stream a stream to decompress
- * @param target the target directory
- * @param ext the file extension
- * @returns {Promise.<*>} A promise that resolves upon completion
- * @private
- */
-function decompressToDisk(stream, target, ext) {
-	var dfd = new Promise.Deferred();
-	var decompressor = decompress({ ext: ext, path: target });
-
-	stream.pipe(decompressor);
-
-	decompressor.on('close', function () {
-		console.log('closed decompressor');
-		dfd.resolve();
-	});
-
-	return dfd.promise;
-}
-
-/**
- * Downloads a file from a server
- *
- * @param {string} url The target URL.
- * @param {string} proxy a proxy URL
- * @returns {Promise.<module:http.ServerResponse>}
- * @private
- */
-function download(url, proxy) {
-	var options = {
-		streamDate: true,
-		proxy: proxy
-	};
-	var request = requestUtil(url, options);
-
-	request.then(onComplete, onError, onProgress);
-
-	return request;
-
-	// TODO remove after debugging
-	function onProgress(update) {
-		if(!update) { return; }
-
-		if(update.type === 'data') {
-			console.log('chunk: ' + update.chunk.length + ' loaded: ' + update.loaded + ' total: ' + update.total);
-		}
-		else if (update.type === 'nativeResponse') {
-			console.log('got native response');
-		}
-	}
-
-	function onComplete(response) {
-		if (response.statusCode === 200) {
-			return response;
-		}
-		else if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-			return download(response.headers.location);
-		}
-		else {
-			return new Promise.Deferred().reject(response);
-		}
-	}
-
-	function onError(error) {
-		console.log('download error');
-		console.log(error);
 	}
 }
 
@@ -369,90 +262,30 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 	 * @param {boolean} forceDownload Force downloading the software even if it already has been downloaded.
 	 * @returns {Promise.<void>} A promise that resolves once the download and extraction process has completed.
 	 */
-	newDownload: function (forceDownload) {
-		var directory = this.directory;
-		var url = this.url;
-		var decompressPromise;
-
-		if (!forceDownload && this.isDownloaded) {
-			return Promise.resolve();
-		}
-
-		return download(url, this.proxy)
-			.then(function () {
-				return decompressPromise;
-			}, undefined, function (update) {
-				if (update.type === 'nativeResponse') {
-					decompressPromise = decompressToDisk(update.response, directory, url);
-//					update.response.pipe(new fs.createWriteStream('test.zip')); // TODO remove after testing is complete
-				}
-			});
-	},
-
-	// TODO match APIs and replace w/ newDownload
-	/**
-	 * Downloads and extracts the tunnel software if it is not already downloaded.
-	 *
-	 * This method can be extended by implementations to perform any necessary post-processing, such as setting
-	 * appropriate file permissions on the downloaded executable.
-	 *
-	 * @param {boolean} forceDownload Force downloading the software even if it already has been downloaded.
-	 * @returns {Promise.<void>} A promise that resolves once the download and extraction process has completed.
-	 */
 	download: function (forceDownload) {
+		var directory = this.directory;
 		var dfd = new Promise.Deferred(function (reason) {
 			request && request.cancel(reason);
-			request = null;
 		});
+		var targetStream = decompress({ ext: this.url, path: directory });
+		var options = {
+			streamData: true,
+			streamTarget: targetStream,
+			proxy: this.proxy
+		};
+		var request;
 
 		if (!forceDownload && this.isDownloaded) {
-			dfd.resolve();
+			dfd.resolve(directory);
 			return dfd.promise;
 		}
 
-		var target = this.directory;
-		var request;
+		request = requestUtil(this.url, options);
+//		request.then(undefined, dfd.reject.bind(dfd), dfd.progress.bind(dfd));
 
-		function download(url) {
-			request = get(url);
-			request.then(function (response) {
-				if (response.statusCode === 200) {
-					var receivedLength = 0;
-					var totalLength = +response.headers['content-length'] || Infinity;
-					var decompressor = decompress({ ext: url, path: target });
-
-					response.pipe(decompressor);
-
-					response.on('data', function (data) {
-						receivedLength += data.length;
-						dfd.progress({ received: receivedLength, total: totalLength });
-					});
-
-					decompressor.on('close', function () {
-						dfd.resolve();
-					});
-				}
-				else if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-					download(response.headers.location);
-				}
-				else {
-					var responseData = '';
-					response.on('data', function (data) {
-						responseData += data.toString('utf8');
-					});
-
-					response.on('end', function () {
-						var error = new Error('Server error: [' + response.statusCode + '] ' + (responseData || ''));
-						dfd.reject(error);
-					});
-				}
-			},
-			function (error) {
-				dfd.reject(error);
-			});
-		}
-
-		download(this.url);
+		targetStream.on('close', function () {
+			dfd.resolve(directory);
+		});
 
 		return dfd.promise;
 	},
