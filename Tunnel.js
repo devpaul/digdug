@@ -281,7 +281,7 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 		}
 
 		request = requestUtil(this.url, options);
-//		request.then(undefined, dfd.reject.bind(dfd), dfd.progress.bind(dfd));
+		request.then(undefined, dfd.reject.bind(dfd), dfd.progress.bind(dfd));
 
 		targetStream.on('close', function () {
 			dfd.resolve(directory);

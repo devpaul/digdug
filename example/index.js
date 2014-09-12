@@ -4,18 +4,23 @@ var pathUtil = require('path');
 var target = pathUtil.join(__dirname, 'saucelabs');
 var tunnel = new SauceLabsTunnel({
 	directory: target,
-//	proxy: 'http://localhost:8888'
+	proxy: 'http://localhost:8888'
 });
 
 rimraf(target, function () {
 	tunnel.download()
-		.then(function (response) {
+		.then(function () {
 			console.log('Download complete');
-			console.log(response);
 		}, function (error) {
+			console.log('Error:');
 			console.log(error);
 		}, function (update) {
-			if(!update || update.type !== 'data') { return; }
-			console.log('chunk: ' + update.chunk.length + ' loaded: ' + update.loaded + ' total: ' + update.total);
+			if (!update) { return; }
+			if (update.type === 'data') {
+				console.log('chunk: ' + update.chunk.length + ' loaded: ' + update.loaded + ' total: ' + update.total);
+			}
+			if (update.type === 'redirect') {
+				console.log('redirect: ' + update.location);
+			}
 		});
 });
