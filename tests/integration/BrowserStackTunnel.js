@@ -20,13 +20,13 @@ define([
 			missingCredentials = !tunnel.accessKey || !tunnel.username;
 		},
 
-		getBrowsers: function () {
+		getEnvironments: function () {
 			if (missingCredentials) {
 				this.skip('missing credentials. Please provide BrowserStack credentials with the ' +
 					'BROWSERSTACK_ACCESS_KEY and BROWSERSTACK_USERNAME environment variables');
 				return;
 			}
-			return tunnel.getBrowsers()
+			return tunnel.getEnvironments()
 				.then(function (browsers) {
 					assert.isArray(browsers);
 					browsers.forEach(function (environment) {
@@ -39,44 +39,52 @@ define([
 				});
 		},
 
-		localizeEnvironment: {
-			latest: function () {
-				if (missingCredentials) {
-					this.skip('missing credentials. Please provide BrowserStack credentials with the ' +
-						'BROWSERSTACK_ACCESS_KEY and BROWSERSTACK_USERNAME environment variables');
-					return;
-				}
-				var environment = { browserName: 'chrome', version: 'latest' };
-				return tunnel.localizeEnvironment(environment)
-					.then(function (actual) {
-						assert.isObject(actual);
-						assert.notStrictEqual(actual.version, 'latest');
-						assert.notStrictEqual(actual.version, 'previous');
+		parseVersions: (function () {
+			var availableVersionsPromise;
+
+			return {
+				before: function () {
+					if (!missingCredentials) {
+						availableVersionsPromise = tunnel.getVersions('chrome');
+					}
+				},
+
+				latest: function () {
+					if (missingCredentials) {
+						this.skip('missing credentials. Please provide BrowserStack credentials with the ' +
+							'BROWSERSTACK_ACCESS_KEY and BROWSERSTACK_USERNAME environment variables');
+						return;
+					}
+
+					return Promise.all([
+						tunnel.parseVersions('latest', 'chrome'),
+						availableVersionsPromise
+					]).then(function (results) {
+						var versions = results[0];
+						var availableVersions = results[1];
+						assert.lengthOf(versions, 1);
+						assert.deepEqual(versions, availableVersions.slice(-1));
 					});
-			},
+				},
 
-			previous: function () {
-				if (missingCredentials) {
-					this.skip('missing credentials. Please provide BrowserStack credentials with the ' +
-						'BROWSERSTACK_ACCESS_KEY and BROWSERSTACK_USERNAME environment variables');
-					return;
+				'latest - 2 .. latest': function () {
+					if (missingCredentials) {
+						this.skip('missing credentials. Please provide BrowserStack credentials with the ' +
+							'BROWSERSTACK_ACCESS_KEY and BROWSERSTACK_USERNAME environment variables');
+						return;
+					}
+
+					return Promise.all([
+						tunnel.parseVersions('latest - 2 .. latest', 'chrome'),
+						availableVersionsPromise
+					]).then(function (results) {
+						var versions = results[0];
+						var availableVersions = results[1];
+						assert.lengthOf(versions, 3);
+						assert.deepEqual(versions, availableVersions.slice(-3));
+					});
 				}
-				var environment = { browserName: 'chrome', version: 'previous' };
-				var latestEnvironment = { browserName: 'chrome', version: 'latest' };
-				return Promise.all([
-					tunnel.localizeEnvironment(latestEnvironment),
-					tunnel.localizeEnvironment(environment)
-				]).then(function (environments) {
-					var latest = environments[0];
-					var previous = environments[1];
-
-					assert.isObject(previous);
-					assert.notStrictEqual(previous.version, 'latest');
-					assert.notStrictEqual(previous.version, 'previous');
-					assert.notStrictEqual(previous.version, latest.version);
-					assert.strictEqual(parseFloat(previous.version) + 1, parseFloat(latest.version));
-				});
-			}
-		}
+			};
+		}())
 	});
 });
