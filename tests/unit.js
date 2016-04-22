@@ -389,6 +389,22 @@ define([
 							});
 					},
 
+					'removes non-numeric versions': function () {
+						tunnel.getEnvironments = function () {
+							return Promise.resolve([
+								{ browser: 'chrome', version: '12' },
+								{ browser: 'chrome', version: 'beta' },
+								{ browser: 'chrome', version: 'dev' }
+							]);
+						};
+
+						return tunnel.getVersions('chrome')
+							.then(function (versions) {
+								assert.lengthOf(versions, 1);
+								assert.deepEqual(versions, [ '12' ]);
+							});
+					},
+
 					'sorts versions numerically': function () {
 						tunnel.getEnvironments = function () {
 							return Promise.resolve([

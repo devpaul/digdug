@@ -566,13 +566,14 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 	/**
 	 * @param browser the browser name to filter by
 	 *
-	 * @return {Promise<U>} a list of unique versions filtered by browser
+	 * @return {Promise<U>} a list of unique, numeric versions filtered by browser
 	 */
 	getVersions: function (browser) {
 		function reduceVersions(list, environment) {
 			var version = environment.browser_version || environment.version || environment.short_version;
 
-			if (this._matchEnvironment(environment, browser) &&
+			if (!isNaN(Number(version)) &&
+				this._matchEnvironment(environment, browser) &&
 				!versionSet.hasOwnProperty(version)) {
 				versionSet[version] = environment;
 				list.push(version);
@@ -584,7 +585,8 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 
 		return this.getEnvironments()
 			.then(function (environments) {
-				return environments.reduce(reduceVersions.bind(this), [])
+				return environments
+					.reduce(reduceVersions.bind(this), [])
 					.sort(this._compareVersionStrings);
 			}.bind(this));
 	},
