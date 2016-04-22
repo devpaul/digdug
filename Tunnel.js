@@ -554,6 +554,22 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 		childProcess.kill('SIGINT');
 
 		return dfd.promise;
+	},
+
+	/**
+	 * Localizes an environment for a specific tunnel by converting any recognized aliases into values recoginized
+	 * by the testing environment
+	 *
+	 * Current supported aliases:
+	 *
+	 * version:
+	 *  * latest
+	 *  * previous
+	 *
+	 * @param environment {Object} the localized environment
+	 */
+	localizeEnvironment: function (environment) {
+		return environment;
 	}
 });
 

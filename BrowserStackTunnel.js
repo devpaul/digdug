@@ -250,6 +250,76 @@ BrowserStackTunnel.prototype = util.mixin(Object.create(_super), /** @lends modu
 		}, 5000);
 
 		return dfd.promise;
+	},
+
+	getBrowsers: function () {
+		return request('https://www.browserstack.com/automate/browsers.json', {
+			password: this.accessKey,
+			user: this.username,
+			proxy: this.proxy
+		}).then(function (response) {
+			if (response.statusCode >= 200 && response.statusCode < 400) {
+				return JSON.parse(response.data.toString());
+			}
+			else {
+				throw new Error('Server replied with a status of ' + response.statusCode);
+			}
+		});
+	},
+
+	localizeEnvironment: function (environment) {
+		var versionSet = {};
+
+		/**
+		 * Remove browsers that do not match the environment and duplicate version numbers
+		 * @param list The list of reduced browser environments
+		 * @param definition the current environment definition
+		 */
+		function reduceBrowsers(list, definition) {
+			var version = definition.browser_version;
+			if (match(environment.browserName, definition.browser) &&
+			(!environment.platform || match(environment.platform, definition.os)) &&
+			!versionSet.hasOwnProperty(version)) {
+				versionSet[version] = definition;
+				list.push(definition);
+			}
+			return list;
+		}
+
+		function isVersionAlias(version) {
+			return version === 'latest' || version === 'previous';
+		}
+
+		function match(a, b) {
+			return a.toLowerCase() === b.toLowerCase();
+		}
+
+		function compareVersionStrings(a, b) {
+			return parseFloat(a.browser_version) - parseFloat(b.browser_version);
+		}
+
+		function getVersion (version, sortedBrowsers) {
+			var offset = 1;
+			if (version === 'previous') {
+				offset = 2;
+			}
+
+			return sortedBrowsers[sortedBrowsers.length - offset].browser_version;
+		}
+
+		var version = environment.version.toLowerCase();
+		if (isVersionAlias(version)) {
+			return this.getBrowsers()
+				.then(function (browsers) {
+					environment.version = getVersion(environment.version, browsers
+						.reduce(reduceBrowsers, [])
+						.sort(compareVersionStrings));
+
+					return environment;
+				}.bind(this));
+		}
+
+		return Promise.resolve(environment);
 	}
 });
 

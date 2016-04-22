@@ -456,6 +456,19 @@ SauceLabsTunnel.prototype = util.mixin(Object.create(_super), /** @lends module:
 		}));
 
 		return child;
+	},
+
+	/**
+	 * Versions are localized based on SauceLab's browser shortcuts
+	 *
+	 * @param environment
+	 * @see http://sauceio.com/index.php/2016/03/new-browser-version-shortcuts/
+	 */
+	localizeEnvironment: function (environment) {
+		if (environment.version === 'previous') {
+			environment.version = 'latest-1';
+		}
+		return environment;
 	}
 });
 
