@@ -11,6 +11,7 @@ var sendRequest = require('dojo/request');
 var spawnUtil = require('child_process');
 var urlUtil = require('url');
 var util = require('./util');
+var request = require('dojo/request');
 
 // TODO: Spawned processes are not getting cleaned up if there is a crash
 
@@ -560,7 +561,18 @@ Tunnel.prototype = util.mixin(Object.create(_super), /** @lends module:digdug/Tu
 	 * Get a list of environments available on the service
 	 */
 	getEnvironments: function () {
-		return Promise.reject(new Error('Not implemented'));
+		return request(this.getEnvironmentUrl, {
+			password: this.accessKey,
+			user: this.username,
+			proxy: this.proxy
+		}).then(function (response) {
+			if (response.statusCode >= 200 && response.statusCode < 400) {
+				return JSON.parse(response.data.toString());
+			}
+			else {
+				throw new Error('Server replied with a status of ' + response.statusCode);
+			}
+		});
 	},
 
 	/**

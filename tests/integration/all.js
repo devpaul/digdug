@@ -1,5 +1,6 @@
 define([
 	'./BrowserStackTunnel',
-	'./SauceLabsTunnel'
+	'./SauceLabsTunnel',
+	'./TestingBotTunnel'
 ], function () {
 });

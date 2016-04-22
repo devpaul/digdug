@@ -163,6 +163,8 @@ SauceLabsTunnel.prototype = util.mixin(Object.create(_super), /** @lends module:
 	 */
 	vmVersion: null,
 
+	getEnvironmentUrl: 'https://saucelabs.com/rest/v1/info/platforms/webdriver',
+
 	get auth() {
 		return this.username + ':' + this.accessKey;
 	},
@@ -456,21 +458,6 @@ SauceLabsTunnel.prototype = util.mixin(Object.create(_super), /** @lends module:
 		}));
 
 		return child;
-	},
-
-	getEnvironments: function () {
-		return request('https://saucelabs.com/rest/v1/info/platforms/webdriver', {
-			password: this.accessKey,
-			user: this.username,
-			proxy: this.proxy
-		}).then(function (response) {
-			if (response.statusCode >= 200 && response.statusCode < 400) {
-				return JSON.parse(response.data.toString());
-			}
-			else {
-				throw new Error('Server replied with a status of ' + response.statusCode);
-			}
-		});
 	}
 });
 
