@@ -458,17 +458,19 @@ SauceLabsTunnel.prototype = util.mixin(Object.create(_super), /** @lends module:
 		return child;
 	},
 
-	/**
-	 * Versions are localized based on SauceLab's browser shortcuts
-	 *
-	 * @param environment
-	 * @see http://sauceio.com/index.php/2016/03/new-browser-version-shortcuts/
-	 */
-	localizeEnvironment: function (environment) {
-		if (environment.version === 'previous') {
-			environment.version = 'latest-1';
-		}
-		return environment;
+	getEnvironments: function () {
+		return request('https://saucelabs.com/rest/v1/info/platforms/webdriver', {
+			password: this.accessKey,
+			user: this.username,
+			proxy: this.proxy
+		}).then(function (response) {
+			if (response.statusCode >= 200 && response.statusCode < 400) {
+				return JSON.parse(response.data.toString());
+			}
+			else {
+				throw new Error('Server replied with a status of ' + response.statusCode);
+			}
+		});
 	}
 });
 
