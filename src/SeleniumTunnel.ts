@@ -10,11 +10,18 @@ import Tunnel, { DownloadOptions, ChildDescriptor } from './Tunnel';
 import { join as joinPath } from 'path';
 import { existsSync, writeFile } from 'fs';
 import { IResponse } from 'dojo/request';
-import ChromeConfig from './configs/ChromeConfig';
+import ChromeConfig, { factory as chromeFactory } from './configs/ChromeConfig';
 import IeConfig from './configs/IeConfig';
 import FirefoxConfig from './configs/FirefoxConfig';
 import SeleniumConfig from './configs/SeleniumConfig';
 import { KwArgs } from './interfaces';
+
+export interface DriverProperties extends KwArgs {
+	platform?: string;
+	arch?: string;
+	version?: string;
+	baseUrl?: string;
+}
 
 /**
  * used to provide overrides for a driver
@@ -27,14 +34,14 @@ import { KwArgs } from './interfaces';
  *
  * The above example will use the FirefoxConfig and override default properties with the provided values
  */
-export interface DriverProperties extends KwArgs {
+export interface DriverConfiguration extends DriverProperties {
 	name: string;
 }
 
 /**
  * valid ways of referring to a driver file (e.g. ChromeDriver)
  */
-export type DriverDescriptors = 'chrome' | 'ie' | 'firefox' | DriverProperties | DriverFile;
+export type DriverDescriptors = 'chrome' | 'ie' | 'firefox' | DriverConfiguration | DriverFile;
 
 /**
  * used to provide overrides for Selenium
@@ -73,11 +80,21 @@ export interface DriverFile extends RemoteFile {
 	seleniumProperty: string;
 }
 
-export type DriverFileConstructor = { new(config?: KwArgs): DriverFile };
+export type DriverFileConstructor = {
+	new(config?: KwArgs): DriverFile
+};
 export type DriverMap = { [ key: string ]: DriverFileConstructor };
+
+export interface DriverFactory {
+	(config: DriverProperties): Promise<DriverFile>;
+}
+
+export type DriverFactoryMap = { [ key: string ]: DriverFactory };
 
 export default class SeleniumTunnel extends Tunnel {
 	driverNameMap: DriverMap;
+
+	driverFactoryMap: DriverFactoryMap;
 
 	/**
 	 * Additional arguments to send to Selenium standalone on start
@@ -182,8 +199,8 @@ export default class SeleniumTunnel extends Tunnel {
 				const _Constructor: DriverFileConstructor = this.driverNameMap[data];
 				return new _Constructor();
 			}
-			if (typeof data === 'object' && (<DriverProperties> data).name) {
-				const name: string = (<DriverProperties> data).name;
+			if (typeof data === 'object' && (<DriverConfiguration> data).name) {
+				const name: string = (<DriverConfiguration> data).name;
 				const _Constructor: DriverFileConstructor = this.driverNameMap[name];
 				return new _Constructor(data);
 			}
@@ -298,6 +315,9 @@ mixin(SeleniumTunnel.prototype, {
 		chrome: ChromeConfig,
 		ie: IeConfig,
 		firefox: FirefoxConfig
+	}),
+	driverFactoryMap: Object.freeze({
+		chrome: chromeFactory
 	}),
 	seleniumDrivers: Object.freeze([ 'chrome' ])
 });

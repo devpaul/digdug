@@ -41,5 +41,35 @@ export function on(emitter: EventEmitter, event: string, listener: EventListener
 			this.remove = function () { };
 			emitter.removeListener(event, listener);
 		}
+	};
+}
+
+/**
+ * Used to compare two string-based version numbers
+ * @param a left value
+ * @param b right value
+ * @return {number} returns a negative number if a is less than b, positive if a is greater, otherwise zero
+ */
+export function compareVersions(a: string, b: string): number {
+	const aComponents = a.split('.');
+	const bComponents = b.split('.');
+	const maxComponents = Math.max(aComponents.length, bComponents.length);
+
+	for (let i = 0; i < maxComponents; i++) {
+		const aValue = Number(aComponents[i] || 0);
+		const bValue = Number(bComponents[i] || 0);
+
+		if (isNaN(aValue) || isNaN(bValue)) {
+			throw new Error('unrecoginized version');
+		}
+
+		if (aValue < bValue) {
+			return -1;
+		}
+		if (aValue > bValue) {
+			return 1;
+		}
 	}
+
+	return 0;
 }
